@@ -1,0 +1,65 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+launch.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.log
+*.egg-info/
+voxcpm.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+.next/
+reader-web/node_modules/
+reader-web/.next/
+reader-web/out/
+*.tsbuildinfo
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+reader-web/.env.local
+narration-studio-web/.env.local
+
+# Local model weights, checkpoints, and training output
+pretrained_models/
+models/khmer-tts/base_model/
+checkpoints/
+logs/
+runs/
+tensorboard/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+
+# Generated narration output and benchmark artifacts
+reader_outputs/
+benchmarks/
+theary_parts/
+*.wav
+out.wav
+
+# User uploads and local-only app files
+voice_clone_dataset/uploads/
+app_local.py
+
+# Local scratch/test files
+test copy.txt
+test.txt
+test_lines.txt
+
+# Local build outputs
+go-backend/server
+go-backend/server.exe

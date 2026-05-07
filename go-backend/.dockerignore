@@ -1,0 +1,7 @@
+.git
+server
+server.exe
+reader_outputs
+*.db
+*.log
+.env

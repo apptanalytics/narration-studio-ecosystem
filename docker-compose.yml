@@ -1,0 +1,76 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nstudio
+      POSTGRES_PASSWORD: nstudio
+      POSTGRES_DB: nstudio
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  tts:
+    build:
+      context: .
+      dockerfile: Dockerfile.tts
+    environment:
+      KHMER_TTS_PORT: "8810"
+      GPU_DEVICE: cpu
+    ports:
+      - "8810:8810"
+    volumes:
+      - ./reader_outputs:/app/reader_outputs
+      - ./models:/app/models
+
+  backend:
+    build:
+      context: ./go-backend
+    environment:
+      APP_ENV: development
+      PORT: "8080"
+      FRONTEND_URL: http://localhost:3000
+      DATABASE_DRIVER: postgres
+      DATABASE_DSN: host=postgres user=nstudio password=nstudio dbname=nstudio port=5432 sslmode=disable TimeZone=UTC
+      REDIS_URL: redis://redis:6379
+      QUEUE_DRIVER: redis
+      JWT_SECRET: change-this-long-random-secret
+      FASTAPI_TTS_URL: http://tts:8810
+      AUDIO_STORAGE_DIR: /data/audio
+      WORKER_COUNT: "3"
+      MAX_GPU_CONCURRENCY: "1"
+      MAX_CHARS_PER_CHUNK: "1500"
+    depends_on:
+      - postgres
+      - redis
+      - tts
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend_data:/data
+
+  frontend:
+    build:
+      context: ./narration-studio-web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    environment:
+      PORT: "3000"
+      BACKEND_API_URL: http://backend:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  backend_data:
+  postgres_data:
+  redis_data:

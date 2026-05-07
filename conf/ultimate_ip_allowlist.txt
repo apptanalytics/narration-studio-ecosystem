@@ -1,0 +1,7 @@
+# Ultimate Cloning allowlist.
+# Add one public IP or CIDR range per line.
+# Examples:
+# 203.0.113.10
+# 203.0.113.0/24
+
+116.93.252.210

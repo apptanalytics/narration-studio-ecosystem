@@ -1,0 +1,16 @@
+{
+  "slug": "khmer-tts",
+  "display_name": "Khmer-TTS",
+  "status": "base-profile",
+  "base_model": "models/khmer-tts/base_model",
+  "source_model": null,
+  "source_model_cache_path": null,
+  "lora_weights_path": null,
+  "full_checkpoint_path": null,
+  "voice_dataset_path": "datasets/khmer-tts",
+  "notes": [
+    "This is a local model profile for Khmer narration testing.",
+    "Use GPU mode for practical generation speed.",
+    "CPU mode is available for setup and short development tests."
+  ]
+}
