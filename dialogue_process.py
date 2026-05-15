@@ -7,7 +7,9 @@ import soundfile as sf
 import time
 from pathlib import Path
 
-# Try to import voxcpm normally
+# Ensure the terminal handles Khmer characters correctly on Windows
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
 try:
     from voxcpm.core import VoxCPM
 except ImportError:
@@ -108,6 +110,8 @@ if __name__ == "__main__":
     mapping = {
         "Speaker 1": args.s1,
         "Speaker 2": args.s2,
+        "Sok": args.s1,
+        "Borey": args.s2,
         "Default": args.s1
     }
     
