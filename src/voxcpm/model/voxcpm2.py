@@ -1158,8 +1158,32 @@ class VoxCPM2Model(nn.Module):
         pytorch_model_path = os.path.join(path, "pytorch_model.bin")
 
         if os.path.exists(safetensors_path) and SAFETENSORS_AVAILABLE:
-            print(f"Loading model from safetensors: {safetensors_path}", file=sys.stderr)
-            model_state_dict = load_file(safetensors_path)
+            print(f"Loading model incrementally from safetensors: {safetensors_path}", file=sys.stderr)
+            from safetensors import safe_open
+            
+            model_state = model.state_dict()
+            
+            # Load VAE weights first (they are small)
+            for kw, val in vae_state_dict.items():
+                target_name = f"audio_vae.{kw}"
+                if target_name in model_state:
+                    dest = model_state[target_name]
+                    if torch.is_tensor(dest) and torch.is_tensor(val):
+                        dest.copy_(val.to(dest.device, dtype=dest.dtype))
+            
+            # Load main model weights one by one
+            with safe_open(safetensors_path, framework="pt", device="cpu") as f:
+                for key in f.keys():
+                    if key in model_state:
+                        tensor = f.get_tensor(key)
+                        dest = model_state[key]
+                        if torch.is_tensor(dest):
+                            dest.copy_(tensor.to(dest.device, dtype=dest.dtype))
+                        del tensor
+            
+            # Move entire model to target device and set eval
+            model = model.to(model.device).eval()
+            
         elif os.path.exists(pytorch_model_path):
             print(f"Loading model from pytorch_model.bin: {pytorch_model_path}", file=sys.stderr)
             checkpoint = torch.load(
@@ -1168,18 +1192,23 @@ class VoxCPM2Model(nn.Module):
                 weights_only=True,
             )
             model_state_dict = checkpoint.get("state_dict", checkpoint)
+            for kw, val in vae_state_dict.items():
+                model_state_dict[f"audio_vae.{kw}"] = val
+            model.load_state_dict(model_state_dict, strict=False)
+            model = model.to(model.device).eval()
+            del model_state_dict
         else:
             raise FileNotFoundError(f"Model file not found. Expected either {safetensors_path} or {pytorch_model_path}")
+        
+        # Explicitly clear memory to prevent OOM
+        import gc
+        gc.collect()
+        if "cuda" in str(model.device):
+            torch.cuda.empty_cache()
 
-        for kw, val in vae_state_dict.items():
-            model_state_dict[f"audio_vae.{kw}"] = val
-
-        # LoRALinear keeps weight/bias compatible with nn.Linear but adds
-        # lora_A/lora_B, which are absent from base pretrained checkpoints.
-        model.load_state_dict(model_state_dict, strict=False)
         if training:
             return model
-        return model.to(model.device).eval().optimize(disable=not optimize)
+        return model.optimize(disable=not optimize)
 
     # ------------------------------------------------------------------ #
     # LoRA Weight Management
