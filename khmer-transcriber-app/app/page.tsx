@@ -97,8 +97,10 @@ export default function KhmerTranscriber() {
       mimeType = 'application/json';
       extension = 'json';
     } else if (format === 'csv') {
-      content = 'Time,Khmer,English\n' + segments.map(s => `"${s.time}","${s.khmer}","${s.english}"`).join('\n');
-      mimeType = 'text/csv';
+      const csvHeader = 'Time,Khmer,English\n';
+      const csvRows = segments.map(s => `"${s.time}","${s.khmer.replace(/"/g, '""')}","${s.english.replace(/"/g, '""')}"`).join('\n');
+      content = '\uFEFF' + csvHeader + csvRows; // Add BOM for Excel UTF-8 support
+      mimeType = 'text/csv;charset=utf-8';
       extension = 'csv';
     } else {
       content = segments.map(s => `[${s.time}s]\nKHMER: ${s.khmer}\nENGLISH: ${s.english}\n---`).join('\n\n');

@@ -48,24 +48,24 @@ export async function POST(req: NextRequest) {
       throw new Error('Audio processing failed in Gemini');
     }
 
-    // Generate Content - Using 3.1 Flash Latest
+    // Generate Content - Using your exact model ID: gemini-3.1-flash-lite
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.1-flash-lite',
       generationConfig: {
         maxOutputTokens: 8192,
         temperature: 0.1,
       }
     }); 
 
-    const prompt = `Transcribe this Khmer audio with precise, continuous timestamps. 
-    Format your response EXACTLY as a JSON array of objects. 
-    Each object must have: "time" (number in seconds), "khmer" (transcript), and "english" (translation).
+    const prompt = `Transcribe this 30-minute Khmer audio with synchronized timestamps. 
+    Format your response EXACTLY as a JSON array of arrays for maximum density. 
+    Each inner array must be: [time_in_seconds, "khmer_transcript", "english_translation"]
     
-    STRICT RULES:
-    1. Provide a new segment at least every 10-15 seconds.
-    2. The "time" must be the exact start of that segment.
-    3. Maintain a perfectly valid JSON array until the very end.
-    4. Do not skip any dialogue.`;
+    COMPRESSION RULES:
+    1. Provide a new segment every 20-30 seconds.
+    2. Use the array format: [[0, "...", "..."], [25, "...", "..."]]
+    3. Do not use objects/keys like "time" or "khmer" to save space.
+    4. Maintain the timeline until the end.`;
 
     // Generate Content with Retry Logic for 429s
     const generateWithRetry = async (retries = 3, delay = 2000) => {
@@ -91,18 +91,36 @@ export async function POST(req: NextRequest) {
 
     const result = await generateWithRetry();
 
-    const responseText = result.response.text();
+    let responseText = result.response.text();
     
-    // Clean up JSON response (Gemini sometimes adds markdown blocks)
-    const jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const data = JSON.parse(jsonStr);
+    // JSON HEALER: If truncated, try to close it
+    let jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    if (!jsonStr.endsWith(']')) {
+      // Find the last completed segment [time, "...", "..."]
+      const lastBracket = jsonStr.lastIndexOf(']');
+      if (lastBracket !== -1) {
+        jsonStr = jsonStr.substring(0, lastBracket + 1) + ']';
+      } else {
+        jsonStr += ']]'; // Emergency close
+      }
+    }
 
-    // Clean up temp file
-    await fs.unlink(tempPath);
-    // Note: Gemini files are auto-deleted after 48 hours or we could delete them manually here
-    await fileManager.deleteFile(uploadedFile.name);
-
-    return NextResponse.json(data);
+    try {
+      const rawData = JSON.parse(jsonStr);
+      // Map back to our object format for the frontend
+      const data = rawData.map((item: any) => ({
+        time: item[0],
+        khmer: item[1],
+        english: item[2]
+      }));
+      
+      await fs.unlink(tempPath);
+      await fileManager.deleteFile(uploadedFile.name);
+      return NextResponse.json(data);
+    } catch (parseError) {
+      console.error('JSON Repair Failed:', jsonStr);
+      throw new Error('Failed to parse transcription. The file might be too long.');
+    }
   } catch (error: any) {
     console.error('Transcription Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
