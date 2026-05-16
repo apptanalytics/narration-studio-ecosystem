@@ -48,22 +48,48 @@ export async function POST(req: NextRequest) {
       throw new Error('Audio processing failed in Gemini');
     }
 
-    // Generate Content
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Use flash for speed
-    const prompt = `Transcribe this Khmer audio. Provide the full text in Khmer script. 
-    Then, provide a professional English translation.
-    Format your response EXACTLY as a JSON object with two fields: "khmer" and "english".
-    Example: {"khmer": "សួស្តី...", "english": "Hello..."}`;
+    // Generate Content - Using 3.1 Flash Latest
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-flash-latest',
+      generationConfig: {
+        maxOutputTokens: 8192,
+        temperature: 0.1,
+      }
+    }); 
 
-    const result = await model.generateContent([
-      {
-        fileData: {
-          mimeType: uploadedFile.mimeType,
-          fileUri: uploadedFile.uri,
-        },
-      },
-      { text: prompt },
-    ]);
+    const prompt = `Transcribe this Khmer audio with precise, continuous timestamps. 
+    Format your response EXACTLY as a JSON array of objects. 
+    Each object must have: "time" (number in seconds), "khmer" (transcript), and "english" (translation).
+    
+    STRICT RULES:
+    1. Provide a new segment at least every 10-15 seconds.
+    2. The "time" must be the exact start of that segment.
+    3. Maintain a perfectly valid JSON array until the very end.
+    4. Do not skip any dialogue.`;
+
+    // Generate Content with Retry Logic for 429s
+    const generateWithRetry = async (retries = 3, delay = 2000) => {
+      try {
+        return await model.generateContent([
+          {
+            fileData: {
+              mimeType: uploadedFile.mimeType,
+              fileUri: uploadedFile.uri,
+            },
+          },
+          { text: prompt },
+        ]);
+      } catch (err: any) {
+        if (err.status === 429 && retries > 0) {
+          console.log(`Rate limited. Retrying in ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          return generateWithRetry(retries - 1, delay * 2);
+        }
+        throw err;
+      }
+    };
+
+    const result = await generateWithRetry();
 
     const responseText = result.response.text();
     
